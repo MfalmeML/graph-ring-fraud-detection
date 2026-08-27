@@ -1,7 +1,8 @@
-kafka-python==3.0.11
-networkx
-neo4j==5.14.0
 fastapi==0.104.1
 uvicorn==0.24.0
 redis==5.0.1
 pydantic==2.5.0
+kafka-python==2.0.2
+neo4j==5.14.0
+networkx==3.2.1
+python-louvain==0.16
