@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from neo4j import GraphDatabase
@@ -14,11 +16,11 @@ class RingScoreResponse(BaseModel):
 
 class ApiConfig:
     def __init__(self):
-        self.neo4j_uri = "bolt://localhost:7687"
-        self.neo4j_user = "neo4j"
-        self.neo4j_password = "password"
-        self.redis_host = "localhost"
-        self.redis_port = 6379
+        self.neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        self.neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+        self.neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
+        self.redis_host = os.getenv("REDIS_HOST", "localhost")
+        self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
 
 config = ApiConfig()
 neo4j_driver = GraphDatabase.driver(
