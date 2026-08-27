@@ -1,6 +1,9 @@
 from typing import List, Dict, Any, Optional
+import logging
 from neo4j import Session
 from src.community.storage import CommunityStorage
+
+logger = logging.getLogger(__name__)
 
 class InvestigatorInterface:
     def __init__(self, session: Session):
@@ -31,6 +34,7 @@ class InvestigatorInterface:
             self.storage.update_ring_status(ring_id, "CONFIRMED", investigator_id)
             return True
         except Exception:
+            logger.exception("Failed to confirm ring %s", ring_id)
             return False
     
     def reject_ring(self, ring_id: str, investigator_id: str = "investigator") -> bool:
@@ -38,7 +42,11 @@ class InvestigatorInterface:
             self.storage.update_ring_status(ring_id, "REJECTED", investigator_id)
             return True
         except Exception:
+            logger.exception("Failed to reject ring %s", ring_id)
             return False
+
+    def get_label_counts(self) -> Dict[str, int]:
+        return self.storage.get_label_counts()
     
     def get_ring_details(self, ring_id: str) -> Optional[Dict[str, Any]]:
         result = self.session.run(

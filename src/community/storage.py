@@ -64,3 +64,15 @@ class CommunityStorage:
             account_id=account_id
         )
         return result.single()["member_count"]
+
+    def get_label_counts(self) -> Dict[str, int]:
+        result = self.session.run(
+            """
+            MATCH (r:RingCandidate)
+            RETURN r.status AS label, count(r) AS count
+            """
+        )
+        return {
+            record["label"] or "UNLABELED": record["count"]
+            for record in result
+        }

@@ -59,6 +59,8 @@ class CommunityBatchJob:
                 })
             
             self._update_ring_cache(candidates)
+            label_counts = storage.get_label_counts()
+            logger.info("Label totals after batch %s: %s", self.job_id, label_counts)
         
         end_time = datetime.utcnow()
         duration = (end_time - start_time).total_seconds()
@@ -69,6 +71,7 @@ class CommunityBatchJob:
             "completed_at": end_time.isoformat(),
             "duration_seconds": duration,
             "candidate_count": len(candidates),
+            "label_counts": label_counts,
             "stored_rings": stored_rings
         }
         
