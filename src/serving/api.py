@@ -1,14 +1,17 @@
 import os
+import time
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from neo4j import GraphDatabase
 from redis import Redis
+from prometheus_client import generate_latest
 from src.serving.ring_score import RingScoreCalculator
 from src.serving.feature_cache import FeatureCache
 from src.embeddings.inference import EmbeddingInference
 from src.serving.circuit_breaker import CircuitBreaker, CircuitBreakerDecorator, CircuitState
+from src.serving.metrics import metrics, timing_decorator
 from src.config.decision_policy import DecisionPolicy
 from src.fusion.learned_fusion import LearnedFusion
 
@@ -114,20 +117,25 @@ def get_ring_score_safe(account_id: str):
 
 @app.get("/ring-score/{account_id}", response_model=RingScoreResponse)
 def get_ring_score(account_id: str):
-    cache_key = f"ring_score:{account_id}"
-    cached = redis_client.get(cache_key)
-    
-    if cached:
-        cached_data = get_ring_score_safe(account_id)
-        return RingScoreResponse(
-            account_id=account_id,
-            ring_score=float(cached),
-            cached=True,
-            combined_score=cached_data.get("combined_score"),
-            confirmed_members=cached_data.get("confirmed_members")
-        )
+    start_time = time.time()
+    status = "success"
     
     try:
+        cache_key = f"ring_score:{account_id}"
+        cached = redis_client.get(cache_key)
+        
+        if cached:
+            cached_data = get_ring_score_safe(account_id)
+            metrics.record_request("cached")
+            metrics.record_ring_score(float(cached))
+            return RingScoreResponse(
+                account_id=account_id,
+                ring_score=float(cached),
+                cached=True,
+                combined_score=cached_data.get("combined_score"),
+                confirmed_members=cached_data.get("confirmed_members")
+            )
+        
         result = get_ring_score_safe(account_id)
         redis_client.setex(cache_key, 60, str(result["ring_score"]))
         
@@ -143,6 +151,9 @@ def get_ring_score(account_id: str):
         except Exception:
             pass
         
+        metrics.record_request("success")
+        metrics.record_ring_score(result["ring_score"])
+        
         return RingScoreResponse(
             account_id=account_id,
             ring_score=result["ring_score"],
@@ -153,7 +164,13 @@ def get_ring_score(account_id: str):
             confirmed_members=result["confirmed_members"]
         )
     except Exception as e:
+        status = "error"
+        metrics.record_request("error")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        duration = time.time() - start_time
+        metrics.record_latency(duration)
+        metrics.update_circuit_state("neo4j", neo4j_circuit.get_status().get("state", 0))
 
 
 @app.get("/circuit/status")
@@ -166,6 +183,11 @@ def reset_circuit():
     neo4j_circuit._set_state(CircuitState.CLOSED)
     neo4j_circuit._reset_failures()
     return {"status": "reset"}
+
+
+@app.get("/metrics")
+def get_metrics():
+    return Response(content=generate_latest(), media_type="text/plain")
 
 @app.on_event("shutdown")
 def shutdown():
