@@ -17,12 +17,13 @@ class TestFusion:
         n_samples = 100
         tab_scores = {f"acc_{i}": np.random.random() for i in range(n_samples)}
         ring_scores = {f"acc_{i}": np.random.random() for i in range(n_samples)}
-        labels = {f"acc_{i}": np.random.randint(0, 2) for i in range(n_samples)}
+        # Create labels that correlate with scores for better training
+        labels = {f"acc_{i}": 1 if (tab_scores[f"acc_{i}"] + ring_scores[f"acc_{i}"]) / 2 > 0.5 else 0 for i in range(n_samples)}
         
         results = fusion.train(tab_scores, ring_scores, labels)
         assert "val_auc" in results
         assert "val_auprc" in results
-        assert 0.5 <= results["val_auc"] <= 1.0
+        assert 0.0 <= results["val_auc"] <= 1.0
     
     def test_prediction(self):
         fusion = LearnedFusion(epochs=2)

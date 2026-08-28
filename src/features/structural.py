@@ -73,13 +73,8 @@ class StructuralFeatureCalculator:
         result = self.session.run(
             """
             MATCH (a:Account {id: $account_id})
-            CALL gds.wcc.stats({
-                nodeLabels: ['Account'],
-                relationshipTypes: ['USED', 'TRANSACTED_WITH', 'OWNS'],
-                sourceNode: a
-            })
-            YIELD componentSize
-            RETURN componentSize
+            MATCH (a)-[:USED|TRANSACTED_WITH|OWNS*0..10]-(connected:Account)
+            RETURN count(DISTINCT connected) AS componentSize
             """,
             account_id=account_id
         )

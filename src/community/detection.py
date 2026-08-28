@@ -37,7 +37,7 @@ class CommunityDetector:
     def detect_connected_components(self, G: nx.Graph) -> List[Set[str]]:
         return list(connected_components(G))
     
-    def compute_community_risk(self, community: Set[str]) -> float:
+    def compute_community_risk(self, community: Set[str], G: nx.Graph) -> float:
         if len(community) < 2:
             return 0.0
         
@@ -48,11 +48,11 @@ class CommunityDetector:
             OPTIONAL MATCH (a)-[:USED|TRANSACTED_WITH|OWNS]-(entity)<-[:USED|TRANSACTED_WITH|OWNS]-(other:Account)
             WHERE other.id IN $account_ids AND other.id <> a.id
             WITH a, collect(DISTINCT other) AS neighbors
-            WITH a, size(neighbors) AS degree
+            WITH a, size(neighbors) AS degree, neighbors
             OPTIONAL MATCH (a)-[:USED|TRANSACTED_WITH|OWNS]-(e1)<-[:USED|TRANSACTED_WITH|OWNS]-(n1)
             OPTIONAL MATCH (n1)-[:USED|TRANSACTED_WITH|OWNS]-(e2)<-[:USED|TRANSACTED_WITH|OWNS]-(n2)
             WHERE n1.id IN $account_ids AND n2.id IN $account_ids AND n1.id <> n2.id AND n2.id IN neighbors
-            WITH a, degree, count(DISTINCT [n1.id, n2.id]) AS triangles
+            WITH a, degree, neighbors, count(DISTINCT [n1.id, n2.id]) AS triangles
             RETURN avg(CASE WHEN degree > 1 THEN triangles / (degree * (degree - 1)) ELSE 0.0 END) AS avg_clustering,
                    max(degree) AS max_degree,
                    avg(degree) AS avg_degree
@@ -91,7 +91,7 @@ class CommunityDetector:
         for comm in communities:
             if len(comm) >= min_community_size:
                 subgraph = G.subgraph(comm)
-                risk = self.compute_community_risk(comm)
+                risk = self.compute_community_risk(comm, G)
                 if risk >= risk_threshold:
                     candidates.append({
                         "community_id": f"ring_{hash(frozenset(comm)) & 0xFFFFFFFF}",

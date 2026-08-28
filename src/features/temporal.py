@@ -38,10 +38,11 @@ class TemporalFeatureCalculator:
             WITH r.created_at AS times
             ORDER BY times
             WITH collect(times) AS timestamps
-            WITH timestamps,
-                 size(timestamps) AS n,
-                 (last(timestamps) - first(timestamps)).seconds / 60.0 AS span
-            WHERE n > 1 AND span > 0
+            WITH timestamps, size(timestamps) AS n
+            WHERE n > 1
+            WITH timestamps[0] AS first_time, timestamps[n-1] AS last_time, n
+            WITH (last_time - first_time).seconds / 60.0 AS span, n
+            WHERE span > 0
             RETURN (n / span) / ( (n * (n - 1)) / (2 * span * span) ) AS burstiness
             """,
             account_id=account_id,
