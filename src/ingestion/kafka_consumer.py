@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Optional
 from kafka import KafkaConsumer
 from neo4j import GraphDatabase, Session
@@ -64,3 +65,14 @@ class TransactionConsumer:
                 created_at=edge.created_at.isoformat(),
                 timestamp=edge.timestamp.isoformat()
             )
+
+
+if __name__ == "__main__":
+    consumer = TransactionConsumer(
+        bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+        topic=os.getenv("KAFKA_TOPIC", "transactions"),
+        neo4j_uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+        neo4j_user=os.getenv("NEO4J_USER", "neo4j"),
+        neo4j_password=os.getenv("NEO4J_PASSWORD", "password")
+    )
+    consumer.run()

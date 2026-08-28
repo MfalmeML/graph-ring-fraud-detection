@@ -53,8 +53,9 @@ class RingScoreCalculator:
             OPTIONAL MATCH (a)-[:USED|TRANSACTED_WITH|OWNS]-(e1)<-[:USED|TRANSACTED_WITH|OWNS]-(other1:Account)
             OPTIONAL MATCH (other1)-[:USED|TRANSACTED_WITH|OWNS]-(e2)<-[:USED|TRANSACTED_WITH|OWNS]-(other2:Account)
             WHERE other2 IN connected AND other1 <> other2
+                 WITH degree, count(DISTINCT [other1.id, other2.id]) AS pair_count
             RETURN CASE WHEN degree > 1 THEN 
-                   count(DISTINCT [other1.id, other2.id]) / (degree * (degree - 1))
+                     pair_count / (degree * (degree - 1))
                    ELSE 0.0 END AS density
             """,
             account_id=account_id
