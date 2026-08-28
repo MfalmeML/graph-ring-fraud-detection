@@ -1,6 +1,7 @@
 .PHONY: help install test docker-up docker-down shadow train
 
 PYTHON := .venv/Scripts/python.exe
+COMPOSE := docker compose -f deployment/docker-compose.yml
 
 help:
 	@echo "Available targets:"
@@ -15,16 +16,19 @@ install:
 	$(PYTHON) -m pip install -r requirements.txt
 
 test:
+	$(COMPOSE) up -d neo4j redis kafka zookeeper
+	$(COMPOSE) wait neo4j redis kafka zookeeper
 	$(PYTHON) -m pytest tests/ -v --tb=short
 
 docker-up:
-	docker compose -f deployment/docker-compose.yml up -d
+	docker build -f deployment/Dockerfile.base -t graph-ring-fraud-base:latest .
+	$(COMPOSE) up -d
 
 docker-down:
-	docker compose -f deployment/docker-compose.yml down
+	$(COMPOSE) down
 
 shadow:
-	docker compose -f deployment/docker-compose.yml up shadow-mode
+	$(COMPOSE) up shadow-mode
 
 train:
 	bash scripts/train_fusion.sh

@@ -1,13 +1,10 @@
-FROM python:3.11-slim
+FROM graph-ring-fraud-base:latest
 
 WORKDIR /app
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends nginx \
 	&& rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ /app/src/
 COPY deployment/nginx.conf /etc/nginx/nginx.conf

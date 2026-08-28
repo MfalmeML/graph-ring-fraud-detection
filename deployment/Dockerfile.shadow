@@ -1,9 +1,6 @@
-FROM python:3.11-slim
+FROM graph-ring-fraud-base:latest
 
 WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ /app/src/
 COPY deployment/shadow_mode.py /app/
