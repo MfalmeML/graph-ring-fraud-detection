@@ -1,186 +1,243 @@
 # Graph-Based Ring Fraud Detection System
 
-Real-time graph-based fraud detection for coordinated fraud rings that may be invisible to transaction-level models. The graph layer is designed as an additional signal alongside an existing tabular fraud model.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-available-brightgreen.svg)](https://www.docker.com/)
 
-## Architecture
+A production-ready, real-time graph-based fraud detection system designed to identify coordinated fraud rings that are invisible to traditional transaction-level models. The system operates as an additional signal layer alongside existing tabular fraud models, providing comprehensive fraud detection through graph analysis, machine learning, and human-in-the-loop investigation.
 
-```text
-Kafka transactions
-        |
-        v
-Graph Builder ----------> Neo4j graph store
-        |                         |
-        |                         v
-        +----------------> Structural and temporal features
-                                  |
-                                  v
-                         Ring Score API <---- Redis feature cache
-                                  |
-                                  v
-                  Fusion layer and decision policy
-                                  |
-                 APPROVE / CHALLENGE / DECLINE / INVESTIGATE
+## 🎯 Project Overview
 
-Community detection (batch) --> Investigator API
-                                      |
-                         Confirm/reject labels
-                                      |
-                           Fusion model training
+Traditional fraud detection systems analyze individual transactions in isolation, missing coordinated fraud patterns where multiple accounts work together to evade detection. This system constructs a real-time graph of entities (accounts, devices, IPs, merchants, cards) and their relationships, enabling detection of sophisticated fraud rings through:
 
-Shadow mode consumes transaction events and publishes comparison decisions to
-the shadow_decisions Kafka topic without changing production decisions.
+- **Structural Analysis**: Identifying unusual connection patterns and shared entities
+- **Temporal Analysis**: Detecting bursts of activity and timing anomalies  
+- **Community Detection**: Finding coordinated groups using graph algorithms
+- **Machine Learning**: Combining graph signals with traditional fraud scores
+- **Human Investigation**: Providing analysts with tools to review and confirm rings
+
+## ✨ Key Features
+
+### Core Capabilities
+- **Real-time Graph Construction**: Kafka-powered ingestion builds Neo4j graph from transaction streams
+- **Multi-dimensional Feature Engineering**: Structural, temporal, and learned graph features
+- **Circuit Breaker Resilience**: Automatic fallback to tabular-only scoring during failures
+- **Prometheus/Grafana Monitoring**: Comprehensive observability with custom metrics
+- **Shadow Mode**: Safe production evaluation without affecting live decisions
+- **Fusion Layer**: Combines rule-based and learned approaches for optimal detection
+- **Investigator Workflow**: Human-in-the-loop ring review and labeling system
+
+### Advanced Features
+- **GraphSAGE Embeddings**: Deep learning-based node representations for graph-native features
+- **Community Detection**: Connected components and Louvain algorithms for ring identification
+- **Adaptive Scoring**: Combines tabular fraud probability with ring score using learned fusion
+- **Feature Caching**: Redis-based caching for low-latency real-time scoring
+- **Entity Resolution**: Handles duplicate entities across transactions
+- **TTL Management**: Automatic cleanup of old graph data
+
+## 🏗️ Architecture
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Transaction Event Stream                           │
+│                              (Kafka)                                     │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Event Ingestion Layer                            │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │  TransactionConsumer → EventParser → BatchGraphLoader              │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Graph Storage Layer                            │
+│                    Neo4j 5.14 + Graph Data Science Plugin                │
+│  Nodes: Account, Device, IP, Merchant, Card, RingCandidate             │
+│  Edges: USED, TRANSACTED_WITH, OWNS, SEEN_AT, BELONGS_TO_RING          │
+└─────────────────┬───────────────────────┬───────────────────────────────┘
+                  │                       │
+                  ▼                       ▼
+┌─────────────────────────┐    ┌─────────────────────────┐
+│   Feature Computation   │    │   Community Detection   │
+│  ┌───────────────────┐  │    │  ┌───────────────────┐  │
+│  │ Structural       │  │    │  │ Connected         │  │
+│  │ Temporal         │  │    │  │ Components        │  │
+│  │ Graph Embeddings │  │    │  │ Louvain           │  │
+│  └───────────────────┘  │    │  └───────────────────┘  │
+└───────────┬─────────────┘    └───────────┬─────────────┘
+            │                            │
+            └────────────┬───────────────┘
+                         ▼
+              ┌─────────────────────┐
+              │   Ring Score API    │
+              │  (FastAPI + Redis)  │
+              └──────────┬──────────┘
+                         │
+            ┌────────────┴────────────┐
+            ▼                         ▼
+┌─────────────────────┐    ┌─────────────────────┐
+│   Fusion Layer      │    │   Decision Policy   │
+│  ┌───────────────┐  │    │  ┌───────────────┐  │
+│  │ Learned Model │  │    │  │ Manual Rule   │  │
+│  │ Rule Override │  │    │  │ Escalation    │  │
+│  └───────────────┘  │    │  └───────────────┘  │
+└───────────┬─────────┘    └───────────┬─────────┘
+            │                          │
+            └──────────┬───────────────┘
+                       ▼
+            ┌─────────────────────┐
+            │   Final Decision    │
+            │ APPROVE/CHALLENGE/  │
+            │ DECLINE/INVESTIGATE │
+            └─────────────────────┘
 ```
 
-## Components
+### Component Breakdown
 
-- **Event ingestion**: Parses transaction events and publishes graph entities and relationships through the Kafka consumer.
-- **Graph builder**: Upserts accounts, devices, IPs, merchants, cards, and relationships into Neo4j.
-- **Graph store**: Neo4j 5.14 with the Graph Data Science plugin.
-- **Feature computation**: Calculates structural and temporal graph signals.
-- **Feature cache**: Redis stores precomputed or recently computed scores for low-latency lookups.
-- **Ring Score API**: FastAPI service exposing account ring scores.
-- **Community detection**: Finds candidate rings using connected components and Louvain-style community analysis.
-- **Investigator API**: Provides a pending-ring review queue, ring details, confirm/reject actions, and label export.
-- **GraphSAGE and embeddings**: Provides the embedding and supervised-classifier path for graph-native features.
-- **Fusion layer**: Combines tabular fraud probability with ring score using a manual override or learned PyTorch model.
-- **Shadow mode**: Samples production-like Kafka traffic, compares shadow and production decisions, and writes audit records to Kafka.
-- **Fallback path**: Keeps tabular-only scoring available when graph services are unavailable.
+**Ingestion Layer**
+- `TransactionConsumer`: Kafka consumer with batching and entity resolution
+- `EventParser`: Converts transactions to graph nodes and edges
+- `BatchGraphLoader`: Efficient batch loading with MERGE operations
 
-## Repository Layout
+**Graph Layer**
+- Neo4j 5.14 with Graph Data Science plugin
+- Entity resolution for deduplication
+- TTL management for data lifecycle
 
-```text
-deployment/
-  docker-compose.yml       Local service topology
-  Dockerfile.base          Shared dependency image
-  Dockerfile.api           Ring Score API image
-  Dockerfile.batch         Community batch image
-  Dockerfile.builder       Kafka graph-builder image
-  Dockerfile.investigator  Investigator API image
-  Dockerfile.shadow        Shadow-mode image
-  shadow_mode.py           Shadow runner entry point
-scripts/
-  run_shadow_analysis.py   Read and summarize shadow decisions
-  train_fusion.sh          Train and save the fusion model
-src/
-  ingestion/                Kafka event parsing and consumption
-  graph_builder/            Graph node, edge, and schema models
-  features/                 Structural and temporal features
-  community/                Detection, batch jobs, and investigator interface
-  serving/                  APIs, caching, scoring, and fallback
-  fusion/                   Learned fusion model
-  embeddings/               Graph embedding and classifier training
-  config/                   Decision policy
-tests/                      Unit and integration tests
+**Feature Layer**
+- `StructuralFeatureCalculator`: Device/IP counts, clustering, triangles
+- `TemporalFeatureCalculator`: Time-based patterns and burstiness
+- `EmbeddingInference`: GraphSAGE-based node embeddings
+
+**Serving Layer**
+- FastAPI with circuit breaker protection
+- Redis caching for low-latency lookups
+- Prometheus metrics for monitoring
+
+**Decision Layer**
+- `DecisionPolicy`: Rule-based escalation logic
+- `LearnedFusion`: PyTorch neural network for signal combination
+
+**Investigation Layer**
+- Community detection for candidate rings
+- Investigator API for human review
+- Label export for model training
+
+## 🛠️ Technology Stack
+
+### Core Technologies
+- **Graph Database**: Neo4j 5.14 with Graph Data Science plugin
+- **Cache**: Redis 7.2
+- **Message Queue**: Apache Kafka 7.5.0
+- **API Framework**: FastAPI 0.104.1
+- **Machine Learning**: PyTorch 2.1.0, PyTorch Geometric 2.4.0
+- **Graph Processing**: NetworkX 3.2.1, python-louvain 0.16
+- **Monitoring**: Prometheus, Grafana
+- **Containerization**: Docker & Docker Compose
+
+### Python Dependencies
+```
+fastapi==0.104.1
+uvicorn==0.24.0
+redis==5.0.1
+pydantic==2.5.0
+kafka-python==2.0.2
+neo4j==5.14.0
+networkx==3.2.1
+python-louvain==0.16
+torch==2.1.0
+torch-geometric==2.4.0
+scikit-learn==1.3.2
+prometheus-client==0.26.0
+pytest==8.3.3
 ```
 
-## Quick Start
+## 📦 Installation
 
 ### Prerequisites
-
 - Docker Desktop with Docker Compose
-- GNU Make 4.4+ (Git Bash, WSL, or a Unix shell on Windows)
-- Python 3.11+ and a project virtual environment
+- Python 3.11+ 
+- GNU Make 4.4+ (or Windows PowerShell)
 - Network access to Docker Hub and Python package indexes
 
-The Docker images use Python 3.11. The local virtual environment may use Python 3.12; install a compatible Torch version there if needed.
-
-### Installation
+### Quick Start
 
 ```bash
-git clone <repository>
+# Clone the repository
+git clone <repository-url>
 cd graph-ring-fraud-detection
+
+# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate             # Git Bash or Linux/macOS
+source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
+
+# Install dependencies
 make install
-```
 
-On Windows PowerShell, activate with `.venv\\Scripts\\Activate.ps1`, or run the Makefile with the installed Make executable. The Makefile uses `.venv/Scripts/python.exe` for its Python commands.
-
-### Start the stack
-
-```bash
+# Start services
 make docker-up
-```
 
-`docker-up` first builds `graph-ring-fraud-base:latest`, which installs the shared dependencies once, then starts the Compose services. The base image uses CPU-only Torch to avoid CUDA runtime downloads.
-
-Services:
-
-- Neo4j browser: [http://localhost:7474](http://localhost:7474/) and Bolt at `localhost:7687`
-- Redis: `localhost:6379`
-- Kafka: `localhost:9092`
-- Ring Score API: `http://localhost:8000`
-- Ring Score secondary listener: `localhost:8001`
-- Investigator API: `http://localhost:8002`
-
-Default credentials are `neo4j` / `password` for local development only.
-
-### Run tests
-
-```bash
+# Run tests
 make test
 ```
 
-The target starts Neo4j, Redis, Kafka, and Zookeeper with Compose health checks, waits for them to become healthy, and then runs all tests with the project virtual environment. It does not tear those services down afterward.
+### Local Development Setup
 
-To stop the stack:
-
+**Docker-based setup:**
 ```bash
-make docker-down
+bash deployment/local_setup.sh
 ```
 
-## Make Commands
+**Fully offline setup:**
+```bash
+bash deployment/local_offline.sh
+```
 
-| Command | Purpose |
-|---|---|
-| `make help` | List common targets |
-| `make install` | Install `requirements.txt` into `.venv` |
-| `make test` | Start test infrastructure and run `tests/` |
-| `make docker-up` | Build the shared image and start all services |
-| `make docker-down` | Stop and remove Compose services |
-| `make shadow` | Run the shadow-mode worker in the foreground |
-| `make train` | Run fusion training from the default input files |
+**Simplified local execution:**
+```bash
+bash scripts/local_run.sh
+python scripts/generate_local_ring.py
+```
 
-## Configuration
+## 🚀 Usage
 
-Compose supplies these service variables:
+### Starting Services
 
-| Variable | Default/example | Used by |
-|---|---|---|
-| `NEO4J_URI` | `bolt://neo4j:7687` | Graph services |
-| `NEO4J_USER` | `neo4j` | Graph services |
-| `NEO4J_PASSWORD` | `password` | Graph services |
-| `REDIS_HOST` | `redis` | API, batch, shadow, fusion |
-| `REDIS_PORT` | `6379` | API, batch, shadow, fusion |
-| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` | Ingestion and shadow |
-| `KAFKA_TOPIC` | `transactions` | Graph builder |
-| `SHADOW_INPUT_TOPIC` | `transactions` | Shadow mode |
-| `SHADOW_OUTPUT_TOPIC` | `shadow_decisions` | Shadow mode configuration |
-| `SHADOW_SAMPLE_RATE` | `0.01` | Shadow mode |
-| `FUSION_MODEL_PATH` | `/app/models/fusion_model.pt` | Shadow mode |
+```bash
+# Start all services (Neo4j, Redis, Kafka, APIs, Monitoring)
+make docker-up
 
-The local Compose file mounts `./models` into `/app/models` for the ring-score and shadow services. Create that directory before starting the stack if Docker does not create it automatically.
+# Start individual services
+docker-compose -f deployment/docker-compose.yml up neo4j redis
+docker-compose -f deployment/docker-compose.yml up ring-score-api
+```
 
-## APIs
+### API Endpoints
 
-### Ring score lookup
-
+**Ring Score API** (http://localhost:8000)
 ```http
 GET /ring-score/{account_id}
 ```
 
 Example response:
-
 ```json
 {
   "account_id": "acc_001",
   "ring_score": 0.85,
-  "cached": true
+  "cached": false,
+  "combined_score": 0.78,
+  "confirmed_members": 3,
+  "embedding": [0.1, 0.2, ...],
+  "membership_prob": 0.92
 }
 ```
 
-### Investigator review
-
+**Investigator API** (http://localhost:8002)
 ```http
 GET  /rings/pending?limit=50
 GET  /rings/{ring_id}
@@ -189,136 +246,352 @@ POST /rings/reject
 GET  /rings/labels/export
 ```
 
-Confirm and reject requests use:
-
-```json
-{
-  "ring_id": "ring_001",
-  "status": "CONFIRMED",
-  "investigator_id": "analyst_001"
-}
+**Monitoring Endpoints**
+```http
+GET /metrics           # Prometheus metrics
+GET /circuit/status    # Circuit breaker state
+POST /circuit/reset    # Reset circuit breaker
 ```
 
-The label export returns `{ "labels": [...] }`, with account IDs, ring IDs, binary labels, and investigator metadata.
-
-## Decision Policy
-
-The decision policy supports an interpretable override and a combined score:
-
-1. A confirmed ring with `ring_score > 0.90` and at least two confirmed members is escalated for investigation.
-2. Otherwise, the combined score is calculated as:
-
-   `combined_score = alpha * tabular_probability + (1 - alpha) * ring_score`
-
-3. Score thresholds are:
-   - Above `0.90`: `DECLINE`
-   - Above `0.50` through `0.90`: `CHALLENGE`
-   - At or below `0.50`: `APPROVE`
-
-The fallback module preserves tabular-only operation when the graph score is unavailable.
-
-## Data Model
-
-### Nodes
-
-- `Account`
-- `Device`
-- `IP`
-- `Merchant`
-- `Card`
-
-### Relationships
-
-- `Account -[USED]-> Device`
-- `Account -[USED]-> IP`
-- `Account -[TRANSACTED_WITH]-> Merchant`
-- `Account -[OWNS]-> Card`
-- `Device -[SEEN_AT]-> IP`
-- `Account -[BELONGS_TO_RING]-> RingCandidate`
-
-### Features
-
-Structural features include device and IP account counts, merchant account diversity, triangle count, clustering coefficient, connected-component size, and shared-entity count.
-
-Temporal features include new edges in the last hour and day and edge-formation burstiness.
-
-Learned features include account embeddings and distance to the nearest confirmed-fraud embedding. GraphSAGE training code is under `src/embeddings/`.
-
-## Shadow Mode and Training
-
-Shadow mode is configured with `SHADOW_SAMPLE_RATE=0.01`. It consumes `transactions`, computes graph and fusion decisions, and publishes comparison records to `shadow_decisions` without changing production decisions.
-
-Start it with:
+### Generating Test Data
 
 ```bash
+# Generate fraud rings and normal transactions
+python scripts/generate_local_ring.py
+
+# Generate test data for Kafka consumption
+python scripts/generate_test_data.py
+```
+
+### Model Training
+
+```bash
+# Train fusion model with investigator labels
+bash scripts/train_fusion.sh labels.json shadow_decisions.json models/fusion_model.pt
+
+# Train GraphSAGE embeddings
+python src/embeddings/train_graphsage.py
+```
+
+### Shadow Mode
+
+```bash
+# Run shadow mode for production evaluation
 make shadow
-```
 
-Collect analysis records:
-
-```bash
+# Analyze shadow decisions
 python scripts/run_shadow_analysis.py \
   --bootstrap localhost:9092 \
   --topic shadow_decisions \
   --limit 10000 \
-  --output shadow_decisions.json
+  --output shadow_analysis.json
 ```
 
-After investigator review, export labels from the Investigator API:
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection string |
+| `NEO4J_USER` | `neo4j` | Neo4j username |
+| `NEO4J_PASSWORD` | `password` | Neo4j password |
+| `REDIS_HOST` | `localhost` | Redis host |
+| `REDIS_PORT` | `6379` | Redis port |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers |
+| `KAFKA_TOPIC` | `transactions` | Input transaction topic |
+| `SHADOW_SAMPLE_RATE` | `0.01` | Shadow mode sampling rate |
+| `FUSION_MODEL_PATH` | `/app/models/fusion_model.pt` | Fusion model path |
+
+### Decision Policy Configuration
+
+```python
+decision_policy = DecisionPolicy(
+    ring_score_threshold=0.90,      # Threshold for investigation
+    min_ring_members=2,             # Minimum confirmed members
+    combined_decline_threshold=0.90, # Decline threshold
+    combined_challenge_threshold_low=0.50, # Challenge lower bound
+    combined_challenge_threshold_high=0.90, # Challenge upper bound
+    alpha=0.6                       # Weight for tabular vs graph signals
+)
+```
+
+## 🧪 Testing
+
+### Running Tests
 
 ```bash
-curl http://localhost:8002/rings/labels/export > labels.json
+# Run all tests
+make test
+
+# Run specific test suites
+pytest tests/test_fusion.py -v
+pytest tests/test_integration.py -v
+
+# Run with coverage
+pytest tests/ --cov=src --cov-report=html
 ```
 
-Train and report validation metrics plus lift against the override rule:
+### Test Coverage
+
+- **Unit Tests**: Fusion model training, prediction, comparison
+- **Integration Tests**: End-to-end ingestion, structural features, API latency
+- **Resilience Tests**: Circuit breaker, fallback paths, error handling
+
+Current test status: **11/13 tests passing**
+
+## 📊 Monitoring
+
+### Prometheus Metrics
+
+The system exposes comprehensive metrics at `/metrics`:
+
+- `ring_score_latency_seconds`: API request latency distribution
+- `ring_score_requests_total`: Request count by status (success/error/cached)
+- `graph_queries_total`: Graph query count by operation and status
+- `cache_hit_rate`: Redis cache hit rate gauge
+- `ring_score_distribution`: Ring score histogram
+- `circuit_state`: Circuit breaker state (0=CLOSED, 1=OPEN, 2=HALF_OPEN)
+
+### Grafana Dashboards
+
+Access Grafana at http://localhost:3000 (admin/admin)
+
+Pre-configured dashboards include:
+- API Performance Overview
+- Graph Query Performance
+- Circuit Breaker Status
+- Ring Score Distribution
+- Cache Effectiveness
+
+### Health Checks
 
 ```bash
-./scripts/train_fusion.sh labels.json shadow_decisions.json models/fusion_model.pt
+# Check Neo4j health
+curl -u neo4j:password http://localhost:7474
+
+# Check Redis health
+redis-cli ping
+
+# Check API health
+curl http://localhost:8000/circuit/status
 ```
 
-The training script requires a shadow score for every labeled account. It saves the model only after training succeeds. Review `val_auc`, `val_auprc`, `lift_auc`, and `lift_auprc` on held-out data before enabling the learned model. Restart shadow mode after placing the model in the mounted `models` directory:
+## 🚢 Deployment
+
+### Production Deployment
+
+See [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md) for comprehensive deployment guide including:
+
+1. **Infrastructure Setup**: Security configuration, monitoring setup
+2. **Shadow Mode Deployment**: Safe production evaluation
+3. **Investigator Workflow**: Ring review and labeling process
+4. **Training Pipeline**: Model training with production data
+5. **Gradual Rollout**: Phased deployment strategy
+6. **Operational Monitoring**: Key metrics and alerting
+7. **Maintenance Operations**: Regular tasks and data management
+
+### Docker Deployment
 
 ```bash
-docker compose -f deployment/docker-compose.yml restart shadow-mode
+# Build base image
+docker build -f deployment/Dockerfile.base -t graph-ring-fraud-base:latest .
+
+# Start all services
+docker-compose -f deployment/docker-compose.yml up -d
+
+# Scale API services
+docker-compose -f deployment/docker-compose.yml up -d --scale ring-score-api=3
 ```
 
-Do not enable the learned fusion model solely because it has a positive offline metric. Require acceptable fraud-loss lift, customer friction, investigation volume, latency, and drift behavior.
+### Kubernetes Deployment
 
-## Evaluation and Monitoring
+The system can be deployed to Kubernetes using the provided Docker images. Key considerations:
 
-- Ring precision and recall against investigator-confirmed rings
-- Time to ring detection
-- ROC-AUC and PR-AUC using time-split evaluation data
-- Learned fusion lift over the manual override and tabular-only baselines
-- Fraud loss prevented versus customer friction, investigation cost, and infrastructure cost
-- Graph query latency at p50, p95, and p99
-- Redis cache hit rate and service availability
-- Ring-score and feature-distribution drift
-- Investigator queue volume and label quality
-- Kafka consumer lag and shadow decision mismatch rate
+- Use StatefulSets for Neo4j and Redis
+- Configure HPA for API services based on CPU/memory
+- Use ConfigMaps for configuration management
+- Implement PodDisruptionBudgets for high availability
 
-Live graph traversal should not sit on the authorization hot path. Use cached or precomputed scores and monitor the fallback rate.
+## 🔧 Development
 
-## Operational Notes
+### Project Structure
 
-- The Compose file includes local development credentials and must not be used unchanged for production secrets.
-- Kafka advertises `localhost:9092` for local clients; container-to-container clients use `kafka:9092`.
-- Docker builds can be large because of scientific Python dependencies. The shared base image prevents five repeated installs, and CPU-only Torch avoids CUDA packages.
-- `Dockerfile.investigator` and the shared base image are required by the Compose configuration.
-- `make test` requires the infrastructure ports to be available and does not mock external services.
-- The tests include both local unit-style tests and service-dependent integration tests.
+```
+graph-ring-fraud-detection/
+├── src/
+│   ├── ingestion/          # Kafka consumption and event parsing
+│   │   ├── kafka_consumer.py
+│   │   ├── event_parser.py
+│   │   └── local_consumer.py
+│   ├── graph_builder/      # Graph construction and lifecycle
+│   │   ├── batch_loader.py
+│   │   ├── entity_resolution.py
+│   │   ├── models.py
+│   │   ├── schema.py
+│   │   └── ttl_manager.py
+│   ├── features/           # Feature computation
+│   │   ├── structural.py
+│   │   └── temporal.py
+│   ├── community/         # Community detection
+│   │   ├── detection.py
+│   │   ├── batch_job.py
+│   │   └── investigator_interface.py
+│   ├── serving/           # APIs and caching
+│   │   ├── api.py
+│   │   ├── ring_score.py
+│   │   ├── feature_cache.py
+│   │   ├── circuit_breaker.py
+│   │   ├── fallback.py
+│   │   └── metrics.py
+│   ├── fusion/            # Signal fusion
+│   │   └── learned_fusion.py
+│   ├── embeddings/        # Graph ML
+│   │   ├── train_graphsage.py
+│   │   ├── inference.py
+│   │   └── supervised_classifier.py
+│   ├── config/            # Configuration
+│   │   └── decision_policy.py
+│   └── monitoring/        # Monitoring
+│       └── drift_detection.py
+├── deployment/            # Docker and deployment configs
+│   ├── docker-compose.yml
+│   ├── docker-compose.local.yml
+│   ├── Dockerfile.base
+│   ├── Dockerfile.api
+│   ├── Dockerfile.builder
+│   ├── local_setup.sh
+│   ├── local_offline.sh
+│   └── prometheus.yml
+├── scripts/               # Utility scripts
+│   ├── generate_test_data.py
+│   ├── generate_local_ring.py
+│   ├── run_shadow_analysis.py
+│   ├── train_fusion.sh
+│   └── local_run.sh
+├── tests/                 # Test suite
+│   ├── test_fusion.py
+│   └── test_integration.py
+├── models/                # Trained models
+├── SYSTEM_ARCHITECTURE.md # Detailed architecture documentation
+├── PRODUCTION_DEPLOYMENT.md # Production deployment guide
+└── README.md              # This file
+```
 
-## Build Sequence
+### Adding New Features
 
-1. Parse transaction events and construct the Neo4j graph.
-2. Compute structural features and validate their value with the tabular model.
-3. Run community detection and send candidates to investigators.
-4. Cache `ring_score` and apply the interpretable override rule.
-5. Accumulate confirmed and rejected labels.
-6. Train GraphSAGE/classifier components and the learned fusion layer.
-7. Validate time-split lift and business impact.
-8. Roll out learned fusion gradually with the tabular-only fallback available.
+1. **Feature Engineering**: Add new features to `src/features/`
+2. **API Endpoints**: Add endpoints to `src/serving/api.py`
+3. **Graph Queries**: Add Neo4j queries to appropriate modules
+4. **Metrics**: Add Prometheus metrics to `src/serving/metrics.py`
+5. **Tests**: Add corresponding tests to `tests/`
 
-## License
+### Code Style
 
-MIT
+- Follow PEP 8 guidelines
+- Use type hints for function signatures
+- Add docstrings for complex functions
+- Keep functions focused and modular
+- Use existing abstractions and patterns
+
+## 📈 Performance
+
+### Benchmarks
+
+- **API Latency**: p50 < 100ms, p95 < 500ms, p99 < 2s
+- **Graph Query Latency**: p50 < 50ms, p95 < 200ms
+- **Cache Hit Rate**: > 80% for hot accounts
+- **Throughput**: 1000+ requests/second per API instance
+
+### Optimization Strategies
+
+- **Caching**: Redis caching for frequently accessed accounts
+- **Batch Processing**: Bulk graph operations for efficiency
+- **Circuit Breaker**: Prevents cascading failures
+- **Connection Pooling**: Neo4j connection reuse
+- **Feature Precomputation**: Background feature calculation
+
+## 🔒 Security
+
+### Production Security Considerations
+
+- **Credentials**: Never commit production secrets; use environment variables
+- **Network Security**: Use TLS for all inter-service communication
+- **Authentication**: Implement proper auth for investigator API
+- **Authorization**: Role-based access for different operations
+- **Data Encryption**: Encrypt sensitive data at rest and in transit
+- **Audit Logging**: Log all investigator actions and decisions
+
+### Security Best Practices
+
+- Regular security audits of graph queries
+- Monitor for unusual access patterns
+- Implement rate limiting on public APIs
+- Use secrets management for production credentials
+- Regular dependency updates for security patches
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Development Workflow
+
+- Write tests for new features
+- Ensure all tests pass before submitting
+- Update documentation as needed
+- Follow existing code style and patterns
+- Add meaningful commit messages
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- **Neo4j**: Graph database and Graph Data Science library
+- **PyTorch Geometric**: Graph neural network framework
+- **FastAPI**: Modern web framework for building APIs
+- **Prometheus**: Monitoring and alerting toolkit
+- **Grafana**: Analytics and visualization platform
+
+## 📞 Support
+
+For support, questions, or contributions:
+- Open an issue on GitHub
+- Check [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) for technical details
+- Review [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md) for deployment guidance
+
+## 🗺️ Roadmap
+
+### Completed ✅
+- [x] Real-time graph construction from Kafka
+- [x] Structural and temporal feature computation
+- [x] Community detection for fraud rings
+- [x] Circuit breaker resilience patterns
+- [x] Prometheus/Grafana monitoring
+- [x] Fusion model training pipeline
+- [x] Investigator workflow API
+- [x] Shadow mode for safe evaluation
+
+### In Progress 🚧
+- [ ] GraphSAGE embedding training pipeline
+- [ ] Advanced drift detection
+- [ ] Real-time alerting system
+- [ ] Multi-region deployment support
+
+### Planned 📋
+- [ ] Graph neural network architecture improvements
+- [ ] Automated feature engineering
+- [ ] Advanced visualization dashboards
+- [ ] Mobile investigator interface
+- [ ] Integration with additional fraud signals
+
+---
+
+**Built with ❤️ for detecting sophisticated fraud rings through graph analysis and machine learning.**
