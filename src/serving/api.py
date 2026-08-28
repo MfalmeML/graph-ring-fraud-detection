@@ -1,4 +1,5 @@
 import os
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -6,6 +7,7 @@ from neo4j import GraphDatabase
 from redis import Redis
 from src.serving.ring_score import RingScoreCalculator
 from src.serving.feature_cache import FeatureCache
+from src.embeddings.inference import EmbeddingInference
 
 app = FastAPI()
 
@@ -13,6 +15,8 @@ class RingScoreResponse(BaseModel):
     account_id: str
     ring_score: float
     cached: bool
+    embedding: Optional[List[float]] = None
+    membership_prob: Optional[float] = None
 
 class ApiConfig:
     def __init__(self):
@@ -38,16 +42,31 @@ feature_cache = FeatureCache(
     redis_port=config.redis_port
 )
 
+embedding_session = neo4j_driver.session()
+embedding_inference = EmbeddingInference(
+    neo4j_session=embedding_session,
+    redis_client=redis_client,
+    model_dir="/app/models"
+)
+
 @app.get("/ring-score/{account_id}", response_model=RingScoreResponse)
 def get_ring_score(account_id: str):
     cache_key = f"ring_score:{account_id}"
     cached = redis_client.get(cache_key)
+    embedding = embedding_inference.get_embedding(account_id)
+    membership_prob = (
+        embedding_inference.predict_ring_membership(account_id)
+        if embedding
+        else None
+    )
     
     if cached:
         return RingScoreResponse(
             account_id=account_id,
             ring_score=float(cached),
-            cached=True
+            cached=True,
+            embedding=embedding,
+            membership_prob=membership_prob
         )
     
     try:
@@ -61,11 +80,14 @@ def get_ring_score(account_id: str):
             return RingScoreResponse(
                 account_id=account_id,
                 ring_score=score,
-                cached=False
+                cached=False,
+                embedding=embedding,
+                membership_prob=membership_prob
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.on_event("shutdown")
 def shutdown():
+    embedding_session.close()
     neo4j_driver.close()
