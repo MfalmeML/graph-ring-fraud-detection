@@ -1,5 +1,7 @@
 .PHONY: help install test docker-up docker-down shadow train
 
+PYTHON := .venv/Scripts/python.exe
+
 help:
 	@echo "Available targets:"
 	@echo "  install      Install Python dependencies"
@@ -10,10 +12,10 @@ help:
 	@echo "  train        Train fusion model from labels"
 
 install:
-	pip install -r requirements.txt
+	$(PYTHON) -m pip install -r requirements.txt
 
 test:
-	pytest tests/ -v --tb=short
+	$(PYTHON) -m pytest tests/ -v --tb=short
 
 docker-up:
 	docker compose -f deployment/docker-compose.yml up -d
