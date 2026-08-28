@@ -8,6 +8,7 @@ def main():
     parser.add_argument("--bootstrap", default="localhost:9092")
     parser.add_argument("--topic", default="shadow_decisions")
     parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument("--output", help="Write collected decisions to a JSON file")
     args = parser.parse_args()
     
     consumer = KafkaConsumer(
@@ -36,6 +37,11 @@ def main():
             ring_high_count += 1
     
     consumer.close()
+
+    if args.output:
+        with open(args.output, "w") as output_file:
+            json.dump(decisions, output_file, indent=2)
+        print(f"Saved decisions to {args.output}")
     
     if not decisions:
         print("No shadow decisions found.")

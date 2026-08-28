@@ -122,6 +122,28 @@ The project is built in stages, each shipping value before the next is attempted
 5. **GraphSAGE embeddings + supervised ring classifier**, once investigator-confirmed labels accumulate
 6. **Learned fusion layer** replacing the manual override rule, validated against the business-impact equation
 
+## Shadow-mode rollout
+
+Run the shadow evaluator against a 1% sample of the transaction stream. It publishes decisions to `shadow_decisions` without changing production decisions:
+
+```bash
+docker compose -f deployment/docker-compose.yml up -d shadow-mode
+python scripts/run_shadow_analysis.py --bootstrap localhost:9092 --limit 10000 --output shadow_decisions.json
+```
+
+After investigators review enough candidates, export the confirmed labels and train the fusion model using the collected shadow scores:
+
+```bash
+curl http://localhost:8002/rings/labels/export > labels.json
+./scripts/train_fusion.sh labels.json shadow_decisions.json models/fusion_model.pt
+```
+
+Review the reported validation metrics and `lift_auc` / `lift_auprc` against the override rule. Only after the lift is acceptable, restart shadow mode so it loads the model from `/app/models/fusion_model.pt`:
+
+```bash
+docker compose -f deployment/docker-compose.yml restart shadow-mode
+```
+
 ## Tech stack
 
 - **Streaming:** Kafka
