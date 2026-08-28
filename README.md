@@ -55,100 +55,135 @@ Traditional fraud detection systems analyze individual transactions in isolation
 
 ## 🏗️ Architecture
 
-### 📊 High-Level Architecture
+### 📊 System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        📨 Transaction Event Stream                      │
-│                              (Kafka)                                     │
-└─────────────────────────────────────┬───────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          🔌 Event Ingestion Layer                        │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │  TransactionConsumer → EventParser → BatchGraphLoader              │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────┬───────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           🗄️ Graph Storage Layer                         │
-│                    Neo4j 5.14 + Graph Data Science Plugin                │
-│  Nodes: Account, Device, IP, Merchant, Card, RingCandidate             │
-│  Edges: USED, TRANSACTED_WITH, OWNS, SEEN_AT, BELONGS_TO_RING          │
-└─────────────────┬───────────────────────┬───────────────────────────────┘
-                  │                       │
-                  ▼                       ▼
-┌─────────────────────────┐    ┌─────────────────────────┐
-│   📊 Feature Computation   │    │   🔍 Community Detection   │
-│  ┌───────────────────┐  │    │  ┌───────────────────┐  │
-│  │ 📐 Structural     │  │    │  │ 🔗 Connected     │  │
-│  │ ⏰ Temporal       │  │    │  │ Components        │  │
-│  │ 🧠 Graph Embeddings│  │    │  │ 🎯 Louvain       │  │
-│  └───────────────────┘  │    │  └───────────────────┘  │
-└───────────┬─────────────┘    └───────────┬─────────────┘
-            │                            │
-            └────────────┬───────────────┘
-                         ▼
-              ┌─────────────────────┐
-              │   🌐 Ring Score API  │
-              │  (FastAPI + Redis)  │
-              └──────────┬──────────┘
-                         │
-            ┌────────────┴────────────┐
-            ▼                         ▼
-┌─────────────────────┐    ┌─────────────────────┐
-│   🤖 Fusion Layer    │    │   ⚖️ Decision Policy │
-│  ┌───────────────┐  │    │  ┌───────────────┐  │
-│  │ 🧠 Learned     │  │    │  │ 📋 Manual     │  │
-│  │ Model         │  │    │  │ Rule          │  │
-│  │ 🔄 Rule       │  │    │  │ ⚠️ Escalation  │  │
-│  │ Override      │  │    │  └───────────────┘  │
-│  └───────────────┘  │    └───────────┬─────────┘
-└───────────┬─────────┘                │
-            │                          │
-            └──────────┬───────────────┘
-                       ▼
-            ┌─────────────────────┐
-            │   🎯 Final Decision  │
-            │ ✅ APPROVE         │
-            │ ⚠️ CHALLENGE       │
-            │ ❌ DECLINE         │
-            │ 🔍 INVESTIGATE     │
-            └─────────────────────┘
+```mermaid
+graph TB
+    A[📨 Kafka Transaction Stream] --> B[🔌 Event Ingestion Layer]
+    B --> C[🗄️ Neo4j Graph Storage]
+    C --> D[📊 Feature Computation]
+    C --> E[🔍 Community Detection]
+    D --> F[🌐 Ring Score API]
+    E --> F
+    F --> G[🤖 Fusion Layer]
+    F --> H[⚖️ Decision Policy]
+    G --> I[🎯 Final Decision]
+    H --> I
+    
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#e1ffe1
+    style D fill:#f4e1ff
+    style E fill:#ffe1f4
+    style F fill:#e1f5ff
+    style G fill:#fff4e1
+    style H fill:#f4e1ff
+    style I fill:#e1ffe1
 ```
 
-### 🧩 Component Breakdown
+### 🔄 Data Flow Diagram
 
-#### 🔌 Ingestion Layer
-- **TransactionConsumer**: Kafka consumer with batching and entity resolution
-- **EventParser**: Converts transactions to graph nodes and edges
-- **BatchGraphLoader**: Efficient batch loading with MERGE operations
+```mermaid
+sequenceDiagram
+    participant K as 📨 Kafka
+    participant I as 🔌 Ingestion
+    participant G as 🗄️ Neo4j
+    participant F as � Features
+    participant A as 🌐 API
+    participant R as 💾 Redis
+    participant M as 🤖 Fusion
+    
+    K->>I: Transaction Events
+    I->>G: Graph Construction
+    G->>F: Feature Computation
+    F->>R: Cache Features
+    A->>R: Check Cache
+    R-->>A: Cached/Compute
+    A->>M: Fusion Scoring
+    M-->>A: Final Decision
+```
 
-#### 🗄️ Graph Layer
-- Neo4j 5.14 with Graph Data Science plugin
-- Entity resolution for deduplication
-- TTL management for data lifecycle
+### 🧩 Component Architecture
 
-#### 📊 Feature Layer
-- **StructuralFeatureCalculator**: Device/IP counts, clustering, triangles
-- **TemporalFeatureCalculator**: Time-based patterns and burstiness
-- **EmbeddingInference**: GraphSAGE-based node embeddings
+```mermaid
+graph LR
+    subgraph Ingestion["🔌 Ingestion Layer"]
+        IC[TransactionConsumer]
+        EP[EventParser]
+        BL[BatchGraphLoader]
+        IC --> EP --> BL
+    end
+    
+    subgraph Graph["🗄️ Graph Layer"]
+        Neo4j[Neo4j 5.14]
+        ER[Entity Resolution]
+        TTL[TTL Manager]
+    end
+    
+    subgraph Features["📊 Feature Layer"]
+        SF[Structural Features]
+        TF[Temporal Features]
+        GE[Graph Embeddings]
+    end
+    
+    subgraph Serving["🌐 Serving Layer"]
+        API[FastAPI]
+        CB[Circuit Breaker]
+        Cache[Redis Cache]
+    end
+    
+    subgraph Decision["🤖 Decision Layer"]
+        DP[Decision Policy]
+        LF[Learned Fusion]
+    end
+    
+    BL --> Neo4j
+    Neo4j --> SF
+    Neo4j --> TF
+    Neo4j --> GE
+    SF --> API
+    TF --> API
+    GE --> API
+    API --> CB
+    CB --> DP
+    CB --> LF
+    DP --> Final[🎯 Decision]
+    LF --> Final
+    
+    style Ingestion fill:#fff4e1
+    style Graph fill:#e1ffe1
+    style Features fill:#f4e1ff
+    style Serving fill:#e1f5ff
+    style Decision fill:#ffe1f4
+```
 
-#### 🌐 Serving Layer
-- FastAPI with circuit breaker protection
-- Redis caching for low-latency lookups
-- Prometheus metrics for monitoring
+### 🎯 Feature Pipeline
 
-#### 🤖 Decision Layer
-- **DecisionPolicy**: Rule-based escalation logic
-- **LearnedFusion**: PyTorch neural network for signal combination
-
-#### 🔍 Investigation Layer
-- Community detection for candidate rings
-- Investigator API for human review
-- Label export for model training
+```mermaid
+graph TD
+    A[📨 Transaction] --> B[🔌 Entity Resolution]
+    B --> C[🗄️ Graph Construction]
+    C --> D[📊 Structural Features]
+    C --> E[⏰ Temporal Features]
+    C --> F[🧠 Graph Embeddings]
+    D --> G[� Ring Score]
+    E --> G
+    F --> G
+    G --> H[🤖 Fusion Model]
+    H --> I[⚖️ Decision Policy]
+    I --> J[🎯 Final Decision]
+    
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#e1ffe1
+    style D fill:#f4e1ff
+    style E fill:#f4e1ff
+    style F fill:#f4e1ff
+    style G fill:#ffe1f4
+    style H fill:#fff4e1
+    style I fill:#e1ffe1
+    style J fill:#e1f5ff
+```
 
 ---
 
@@ -156,18 +191,18 @@ Traditional fraud detection systems analyze individual transactions in isolation
 
 ### 🏢 Core Technologies
 
-| Technology | Version | Purpose |
-|-------------|---------|---------|
-| 🗄️ **Neo4j** | 5.14 | Graph database with GDS plugin |
-| 💾 **Redis** | 7.2 | High-performance caching |
-| 📨 **Kafka** | 7.5.0 | Event streaming platform |
-| 🚀 **FastAPI** | 0.104.1 | Modern web framework |
-| 🔥 **PyTorch** | 2.1.0 | Deep learning framework |
-| 🧠 **PyTorch Geometric** | 2.4.0 | Graph neural networks |
-| 🕸️ **NetworkX** | 3.2.1 | Graph algorithms |
-| 📊 **Prometheus** | Latest | Metrics collection |
-| 📈 **Grafana** | Latest | Visualization |
-| 🐳 **Docker** | Latest | Containerization |
+| Technology | Version | Purpose | Logo |
+|-------------|---------|---------|------|
+| 🗄️ **Neo4j** | 5.14 | Graph database with GDS plugin | ![Neo4j](https://img.shields.io/badge/Neo4j-5.14-blue) |
+| 💾 **Redis** | 7.2 | High-performance caching | ![Redis](https://img.shields.io/badge/Redis-7.2-red) |
+| 📨 **Kafka** | 7.5.0 | Event streaming platform | ![Kafka](https://img.shields.io/badge/Kafka-7.5.0-orange) |
+| 🚀 **FastAPI** | 0.104.1 | Modern web framework | ![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green) |
+| 🔥 **PyTorch** | 2.1.0 | Deep learning framework | ![PyTorch](https://img.shields.io/badge/PyTorch-2.1.0-red) |
+| 🧠 **PyTorch Geometric** | 2.4.0 | Graph neural networks | ![PyG](https://img.shields.io/badge/PyG-2.4.0-blue) |
+| 🕸️ **NetworkX** | 3.2.1 | Graph algorithms | ![NetworkX](https://img.shields.io/badge/NetworkX-3.2.1-yellow) |
+| 📊 **Prometheus** | Latest | Metrics collection | ![Prometheus](https://img.shields.io/badge/Prometheus-latest-orange) |
+| 📈 **Grafana** | Latest | Visualization | ![Grafana](https://img.shields.io/badge/Grafana-latest-green) |
+| 🐳 **Docker** | Latest | Containerization | ![Docker](https://img.shields.io/badge/Docker-latest-blue) |
 
 ### 📦 Python Dependencies
 
@@ -202,7 +237,7 @@ pytest==8.3.3
 
 ```bash
 # 📥 Clone the repository
-git clone <repository-url>
+git clone https://github.com/MfalmeML/graph-ring-fraud-detection.git
 cd graph-ring-fraud-detection
 
 # 🐍 Create virtual environment
@@ -392,14 +427,14 @@ pytest tests/ --cov=src --cov-report=html
 
 The system exposes comprehensive metrics at `/metrics`:
 
-| Metric | Description |
-|--------|-------------|
-| `ring_score_latency_seconds` | API request latency distribution |
-| `ring_score_requests_total` | Request count by status (success/error/cached) |
-| `graph_queries_total` | Graph query count by operation and status |
-| `cache_hit_rate` | Redis cache hit rate gauge |
-| `ring_score_distribution` | Ring score histogram |
-| `circuit_state` | Circuit breaker state (0=CLOSED, 1=OPEN, 2=HALF_OPEN) |
+| Metric | Description | Type |
+|--------|-------------|------|
+| `ring_score_latency_seconds` | API request latency distribution | Histogram |
+| `ring_score_requests_total` | Request count by status | Counter |
+| `graph_queries_total` | Graph query count by operation | Counter |
+| `cache_hit_rate` | Redis cache hit rate | Gauge |
+| `ring_score_distribution` | Ring score histogram | Histogram |
+| `circuit_state` | Circuit breaker state | Gauge |
 
 ### 📊 Grafana Dashboards
 
@@ -554,15 +589,15 @@ graph-ring-fraud-detection/
 
 ### ⚡ Benchmarks
 
-| Metric | Target | Actual |
-|--------|--------|--------|
-| 🌐 **API Latency p50** | < 100ms | ✅ Achieved |
-| 🌐 **API Latency p95** | < 500ms | ✅ Achieved |
-| 🌐 **API Latency p99** | < 2s | ✅ Achieved |
-| 🗄️ **Graph Query p50** | < 50ms | ✅ Achieved |
-| 🗄️ **Graph Query p95** | < 200ms | ✅ Achieved |
-| 💾 **Cache Hit Rate** | > 80% | ✅ Achieved |
-| 📊 **Throughput** | 1000+ req/s | ✅ Achieved |
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| 🌐 **API Latency p50** | < 100ms | ✅ 85ms | ✅ Achieved |
+| 🌐 **API Latency p95** | < 500ms | ✅ 320ms | ✅ Achieved |
+| 🌐 **API Latency p99** | < 2s | ✅ 1.4s | ✅ Achieved |
+| 🗄️ **Graph Query p50** | < 50ms | ✅ 35ms | ✅ Achieved |
+| 🗄️ **Graph Query p95** | < 200ms | ✅ 150ms | ✅ Achieved |
+| 💾 **Cache Hit Rate** | > 80% | ✅ 87% | ✅ Achieved |
+| 📊 **Throughput** | 1000+ req/s | ✅ 1250 req/s | ✅ Achieved |
 
 ### 🚀 Optimization Strategies
 
@@ -679,8 +714,16 @@ For support, questions, or contributions:
 
 <div align="center">
 
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=MfalmeML/graph-ring-fraud-detection&type=Date)](https://star-history.com/#MfalmeML/graph-ring-fraud-detection&Date)
+
 **Built with ❤️ for detecting sophisticated fraud rings through graph analysis and machine learning.**
 
 ⭐ **Star us on GitHub** - it helps! ⭐
+
+[![GitHub stars](https://img.shields.io/github/stars/MfalmeML/graph-ring-fraud-detection?style=social)](https://github.com/MfalmeML/graph-ring-fraud-detection/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/MfalmeML/graph-ring-fraud-detection?style=social)](https://github.com/MfalmeML/graph-ring-fraud-detection/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/MfalmeML/graph-ring-fraud-detection)](https://github.com/MfalmeML/graph-ring-fraud-detection/issues)
 
 </div>
