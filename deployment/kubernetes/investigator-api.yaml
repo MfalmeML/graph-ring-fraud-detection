@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: investigator-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: investigator-api
+  template:
+    metadata:
+      labels:
+        app: investigator-api
+    spec:
+      containers:
+      - name: api
+        image: investigator-api:latest
+        ports:
+        - containerPort: 8001
+        env:
+        - name: NEO4J_URI
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-secret
+              key: uri
+        - name: NEO4J_USER
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-secret
+              key: user
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: neo4j-secret
+              key: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: investigator-api-service
+spec:
+  selector:
+    app: investigator-api
+  ports:
+  - port: 8001
+    targetPort: 8001
+  type: ClusterIP
