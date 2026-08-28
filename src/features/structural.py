@@ -56,13 +56,13 @@ class StructuralFeatureCalculator:
             OPTIONAL MATCH (a)-[:USED|TRANSACTED_WITH|OWNS]-(neighbor)
             WITH a, collect(DISTINCT neighbor) AS neighbors
             WITH a, neighbors, size(neighbors) AS degree
-            WHERE degree > 1
             OPTIONAL MATCH (a)-[:USED|TRANSACTED_WITH|OWNS]-(n1)
             WHERE n1 IN neighbors
             OPTIONAL MATCH (n1)-[:USED|TRANSACTED_WITH|OWNS]-(n2)
             WHERE n2 IN neighbors AND n1 <> n2
+                 WITH degree, count(DISTINCT [n1.id, n2.id]) AS pair_count
             RETURN CASE WHEN degree > 1 
-                   THEN count(DISTINCT [n1.id, n2.id]) / (degree * (degree - 1))
+                     THEN pair_count / (degree * (degree - 1))
                    ELSE 0.0 END AS coefficient
             """,
             account_id=account_id
