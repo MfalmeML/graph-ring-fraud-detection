@@ -83,7 +83,8 @@ class StructuralFeatureCalculator:
             """,
             account_id=account_id
         )
-        return result.single()["componentSize"]
+        record = result.single()
+        return record["componentSize"] if record else 0
     
     def shared_entity_count(self, account_id: str) -> int:
         result = self.session.run(
