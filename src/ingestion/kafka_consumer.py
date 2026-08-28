@@ -4,6 +4,11 @@ from typing import Optional
 from kafka import KafkaConsumer
 from neo4j import GraphDatabase, Session
 from .event_parser import parse_transaction
+from src.graph_builder.batch_loader import BatchGraphLoader
+from src.graph_builder.entity_resolution import EntityResolver
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TransactionConsumer:
     def __init__(
@@ -25,17 +30,38 @@ class TransactionConsumer:
             neo4j_uri,
             auth=(neo4j_user, neo4j_password)
         )
+        self.entity_resolver = EntityResolver()
+        self.batch_size = int(os.getenv("GRAPH_BATCH_SIZE", "100"))
     
     def run(self):
+        nodes = []
+        edges = []
         try:
             for message in self.consumer:
                 event = message.value
-                nodes, edges = parse_transaction(event)
-                with self.driver.session() as session:
-                    self._write_nodes(session, nodes)
-                    self._write_edges(session, edges)
+                try:
+                    event = self.entity_resolver.resolve_transaction(event)
+                    event_nodes, event_edges = parse_transaction(event)
+                except ValueError as exc:
+                    logger.warning("Skipping invalid transaction: %s", exc)
+                    continue
+
+                nodes.extend(event_nodes)
+                edges.extend(event_edges)
+                if len(nodes) >= self.batch_size:
+                    self._flush(nodes, edges)
+                    nodes.clear()
+                    edges.clear()
         finally:
+            if nodes or edges:
+                self._flush(nodes, edges)
             self.driver.close()
+
+    def _flush(self, nodes, edges):
+        with self.driver.session() as session:
+            loader = BatchGraphLoader(session, batch_size=self.batch_size)
+            loader.load_nodes(nodes)
+            loader.load_edges(edges)
     
     def _write_nodes(self, session: Session, nodes):
         for node in nodes:
