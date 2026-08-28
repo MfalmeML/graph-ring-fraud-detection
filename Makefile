@@ -16,8 +16,7 @@ install:
 	$(PYTHON) -m pip install -r requirements.txt
 
 test:
-	$(COMPOSE) up -d neo4j redis kafka zookeeper
-	$(COMPOSE) wait neo4j redis kafka zookeeper
+	$(COMPOSE) up -d --wait neo4j redis kafka zookeeper
 	$(PYTHON) -m pytest tests/ -v --tb=short
 
 docker-up:

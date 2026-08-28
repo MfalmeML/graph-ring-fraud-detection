@@ -3,4 +3,6 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN sed '/^torch==/d' requirements.txt > requirements.docker.txt \
+	&& pip install --no-cache-dir -r requirements.docker.txt \
+	&& pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.1.0+cpu
