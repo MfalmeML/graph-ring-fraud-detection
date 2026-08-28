@@ -1,0 +1,19 @@
+{
+  "labels": [
+    {"account_id": "acc_ring_0_1787928674", "ring_id": "ring_1", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:00:00Z"},
+    {"account_id": "acc_ring_1_1787928674", "ring_id": "ring_1", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:00:00Z"},
+    {"account_id": "acc_ring_2_1787928674", "ring_id": "ring_1", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:00:00Z"},
+    {"account_id": "acc_ring_3_1787928674", "ring_id": "ring_1", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:00:00Z"},
+    {"account_id": "acc_ring_4_1787928674", "ring_id": "ring_1", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:00:00Z"},
+    {"account_id": "acc_ring_5_1787928674", "ring_id": "ring_1", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:00:00Z"},
+    {"account_id": "acc_ring_0_1787928675", "ring_id": "ring_2", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:05:00Z"},
+    {"account_id": "acc_ring_1_1787928675", "ring_id": "ring_2", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:05:00Z"},
+    {"account_id": "acc_ring_2_1787928675", "ring_id": "ring_2", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:05:00Z"},
+    {"account_id": "acc_ring_3_1787928675", "ring_id": "ring_2", "label": 1, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:05:00Z"},
+    {"account_id": "acc_normal_0_1787928678", "ring_id": null, "label": 0, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:10:00Z"},
+    {"account_id": "acc_normal_1_1787928678", "ring_id": null, "label": 0, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:10:00Z"},
+    {"account_id": "acc_normal_2_1787928678", "ring_id": null, "label": 0, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:10:00Z"},
+    {"account_id": "acc_normal_3_1787928678", "ring_id": null, "label": 0, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:10:00Z"},
+    {"account_id": "acc_normal_4_1787928678", "ring_id": null, "label": 0, "investigator_id": "analyst_001", "timestamp": "2026-08-28T14:10:00Z"}
+  ]
+}

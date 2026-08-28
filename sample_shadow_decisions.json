@@ -1,0 +1,17 @@
+[
+  {"account_id": "acc_ring_0_1787928674", "tabular_prob": 0.6, "ring_score": 0.7, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_1_1787928674", "tabular_prob": 0.5, "ring_score": 0.65, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_2_1787928674", "tabular_prob": 0.4, "ring_score": 0.6, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_3_1787928674", "tabular_prob": 0.55, "ring_score": 0.68, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_4_1787928674", "tabular_prob": 0.45, "ring_score": 0.62, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_5_1787928674", "tabular_prob": 0.5, "ring_score": 0.66, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_0_1787928675", "tabular_prob": 0.55, "ring_score": 0.7, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_1_1787928675", "tabular_prob": 0.5, "ring_score": 0.67, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_2_1787928675", "tabular_prob": 0.45, "ring_score": 0.64, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_ring_3_1787928675", "tabular_prob": 0.52, "ring_score": 0.69, "shadow_decision": "CHALLENGE", "production_decision": "APPROVE"},
+  {"account_id": "acc_normal_0_1787928678", "tabular_prob": 0.3, "ring_score": 0.4, "shadow_decision": "APPROVE", "production_decision": "APPROVE"},
+  {"account_id": "acc_normal_1_1787928678", "tabular_prob": 0.35, "ring_score": 0.45, "shadow_decision": "APPROVE", "production_decision": "APPROVE"},
+  {"account_id": "acc_normal_2_1787928678", "tabular_prob": 0.4, "ring_score": 0.5, "shadow_decision": "APPROVE", "production_decision": "APPROVE"},
+  {"account_id": "acc_normal_3_1787928678", "tabular_prob": 0.32, "ring_score": 0.42, "shadow_decision": "APPROVE", "production_decision": "APPROVE"},
+  {"account_id": "acc_normal_4_1787928678", "tabular_prob": 0.38, "ring_score": 0.48, "shadow_decision": "APPROVE", "production_decision": "APPROVE"}
+]

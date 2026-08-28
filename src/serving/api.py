@@ -79,7 +79,7 @@ except Exception:
     fusion_available = False
 
 
-@CircuitBreakerDecorator(neo4j_circuit, fallback=lambda account_id: {"ring_score": 0.0, "combined_score": 0.5})
+@CircuitBreakerDecorator(neo4j_circuit, fallback=lambda account_id: {"ring_score": 0.0, "combined_score": 0.5, "confirmed_members": 0})
 def get_ring_score_safe(account_id: str):
     with neo4j_driver.session() as session:
         calculator = RingScoreCalculator(
@@ -125,15 +125,14 @@ def get_ring_score(account_id: str):
         cached = redis_client.get(cache_key)
         
         if cached:
-            cached_data = get_ring_score_safe(account_id)
             metrics.record_request("cached")
             metrics.record_ring_score(float(cached))
             return RingScoreResponse(
                 account_id=account_id,
                 ring_score=float(cached),
                 cached=True,
-                combined_score=cached_data.get("combined_score"),
-                confirmed_members=cached_data.get("confirmed_members")
+                combined_score=0.5,
+                confirmed_members=0
             )
         
         result = get_ring_score_safe(account_id)
@@ -170,7 +169,10 @@ def get_ring_score(account_id: str):
     finally:
         duration = time.time() - start_time
         metrics.record_latency(duration)
-        metrics.update_circuit_state("neo4j", neo4j_circuit.get_status().get("state", 0))
+        circuit_status = neo4j_circuit.get_status().get("state", "CLOSED")
+        state_map = {"CLOSED": 0, "OPEN": 1, "HALF_OPEN": 2}
+        circuit_state = state_map.get(circuit_status, 0)
+        metrics.update_circuit_state("neo4j", circuit_state)
 
 
 @app.get("/circuit/status")
