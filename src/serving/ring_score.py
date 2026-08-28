@@ -16,6 +16,13 @@ class RingScoreCalculator:
         self.structural_weight = structural_score_weight
     
     def compute_ring_score(self, account_id: str) -> float:
+        account_exists = self.session.run(
+            "MATCH (a:Account {id: $account_id}) RETURN a LIMIT 1",
+            account_id=account_id
+        ).single()
+        if not account_exists:
+            return 0.0
+
         features = self.cache.get_features(account_id)
         if not features:
             features = self.cache.compute_and_cache_account_features(
