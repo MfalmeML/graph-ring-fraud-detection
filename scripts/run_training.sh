@@ -11,11 +11,14 @@ export REDIS_HOST=${REDIS_HOST:-localhost}
 export REDIS_PORT=${REDIS_PORT:-6379}
 export MODEL_DIR=${MODEL_DIR:-./models}
 
-mkdir -p $MODEL_DIR
+mkdir -p "$MODEL_DIR"
 
-python -m src.embeddings.train_pipeline
+training_result=$(python -m src.embeddings.train_pipeline)
+printf '%s\n' "$training_result"
 
-if [ $? -eq 0 ]; then
+training_status=$(printf '%s' "$training_result" | python -c 'import json, sys; print(json.load(sys.stdin).get("status"))')
+
+if [ "$training_status" = "success" ]; then
     echo "Training completed successfully."
     echo "Models saved to $MODEL_DIR"
     
@@ -44,6 +47,10 @@ except Exception as e:
     exit(1)
 "
 else
-    echo "Training failed."
+    if [ "$training_status" = "insufficient_labels" ]; then
+        echo "Training not started: at least 10 confirmed labels are required."
+    else
+        echo "Training failed with status: $training_status"
+    fi
     exit 1
 fi
